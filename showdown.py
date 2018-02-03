@@ -5,9 +5,9 @@ import errno
 import io
 import logging
 import os
+import subprocess
 import sys
 
-import sh
 import time
 
 logger = logging.getLogger(__file__)
@@ -98,6 +98,7 @@ TURN_MAX_WAIT_TIME = 3
 TOTAL_TURNS = 15
 MAX_BULLETS = 6
 
+
 class Commands(enum.Enum):
     STAND = "stand"
     SHOOT = "shoot"
@@ -106,15 +107,22 @@ class Commands(enum.Enum):
     SHOOT_NO_BULLET = "shoot_no_bullet"
     GAME_OVER = "game_over"
 
+
 def usage():
     print(f"Usage: {sys.argv[0]} program_a args -- program_b args")
     sys.exit(1)
 
+
 def main():
-    state = setup()
-    while loop(state):
-        pass
-    finish(state)
+    state = {}
+    try:
+        state = setup()
+        while loop(state):
+            pass
+        finish(state)
+    finally:
+        clean(state)
+
 
 def setup():
     state = {
@@ -137,15 +145,32 @@ def setup():
         sys.exit(1)
     return state
 
+
+def read_get_time(timeout, *programs):
+    programs = list(programs)
+    begin = time.time()
+    new_list = []
+    contents = [""] * len(programs)
+    cont = True
+    while cont:
+        for program, content in zip(programs, contents):
+
+        cont = (
+            (time.time() - begin < timeout)
+            and new_list)
+
+
 def setup_one(program_call):
     state = {"program_call": program_call}
 
     try:
         state["stdin"] = io.StringIO()
-        state["program"] = sh.Command(program_call[0])(
-            *program_call[1:], _iter_noblock=True,
-            _bg_exc=False, _in=state["stdin"])
-    except sh.CommandNotFound:
+        state["stdout"] = io.StringIO()
+        state["program"] = subprocess.Popen(
+            program_call,
+            stdin=state["stdin"],
+            stdout=state["stdout"])
+    except FileNotFoundError:
         state["exited"] = True
         print(f"Command '{program_call[0]}' not found")
         return state
@@ -190,6 +215,7 @@ def setup_one(program_call):
 
     return state
 
+
 def setup_logging(name_a, name_b):
     hdlr = logging.FileHandler(f"{name_a}-vs-{name_b}.log")
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
@@ -198,6 +224,7 @@ def setup_logging(name_a, name_b):
     logger.setLevel(logging.DEBUG)
     logger.info(f"Starting new showdown: {name_a} vs {name_b}")
 
+
 def loop(state):
     logger.info(f"Turn {state['turn']} begins")
     command_a = ask(state["a"])
@@ -205,10 +232,12 @@ def loop(state):
     if Commands.GAME_OVER in (command_a, command_b):
         winner = list("ab")
         if command_a == Commands.GAME_OVER:
-            print(f"{state['a']['name']} took more than {TURN_MAX_WAIT_TIME} to respond")
+            print(f"{state['a']['name']} took more than "
+                  f"{TURN_MAX_WAIT_TIME} to respond")
             winner.remove("a")
         if command_b == Commands.GAME_OVER:
-            print(f"{state['b']['name']} took more than {TURN_MAX_WAIT_TIME} to respond")
+            print(f"{state['b']['name']} took more than "
+                  f"{TURN_MAX_WAIT_TIME} to respond")
             winner.remove("b")
         state["winner"] = next(iter(winner), None)
         return False
@@ -225,8 +254,8 @@ def loop(state):
         logger.info(f"{state['b']['name']} shot {state['a']['name']}")
         return False
 
-    # tell(state["a"], command_b)
-    # tell(state["b"], command_a)
+    tell(state["a"], command_b)
+    tell(state["b"], command_a)
 
     state["turn"] += 1
 
@@ -237,8 +266,15 @@ def loop(state):
 
     return True
 
+
+def tell(program, command):
+    print(command.value, file=program["stdin"])
+    program["stdin"].flush()
+
+
 def finish(state):
     print(state.get("winner"))
+
 
 def ask(program):
     command = Commands.STAND
@@ -257,7 +293,9 @@ def ask(program):
                 if ignored != errno.EWOULDBLOCK:
                     break
                 if time.time() - begin > TURN_MAX_WAIT_TIME:
-                    logger.error(f"{name} took more than {TURN_MAX_WAIT_TIME}s")
+                    logger.error(
+                        f"{name} took more than "
+                        f"{TURN_MAX_WAIT_TIME}s")
                     return Commands.GAME_OVER
             else:
                 return Commands.GAME_OVER
@@ -267,16 +305,17 @@ def ask(program):
             return "stand"
     except StopIteration:
         logger.warning(f"{name} exited")
-    except sh.ErrorReturnCode:
+    except sh.ErrorReturnCode as exc:
         logger.warning(f"{name} crashed")
         logger.warning(f"  exit code: {exc.exit_code}")
         logger.warning(f"  stdout: {exc.stdout}")
         logger.warning(f"  stderr: {exc.stderr}")
 
-    try:
-        command = Commands(command.strip())
-    except ValueError:
-        command = Commands.STAND
+    if not isinstance(command, Commands):
+        try:
+            command = Commands(command.strip())
+        except ValueError:
+            command = Commands.STAND
 
     if command not in [Commands.SHOOT, Commands.DODGE, Commands.RELOAD]:
         command = Commands.STAND
@@ -294,6 +333,22 @@ def ask(program):
             program["bullets"] += 1
     logger.info(f"{program['name']} command: {command}")
     return command
+
+
+def clean(state):
+    try:
+        state["a"]["program"].kill()
+    except ProcessLookupError:
+        pass
+    except Exception:
+        logger.exception("Error while killing program a")
+    try:
+        state["b"]["program"].kill()
+    except ProcessLookupError:
+        pass
+    except Exception:
+        logger.exception("Error while killing program b")
+
 
 if __name__ == '__main__':
     main()
