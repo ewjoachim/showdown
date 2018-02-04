@@ -26,11 +26,12 @@ Player play at the same time by issuing one of the 3 allowed commands : ``shoot`
 Who dies ?
 ^^^^^^^^^^
 
-- If A shoots and B reloads, B dies
+(A and B can be any of the 2 players)
+
+- If A shoots while B reloads, B dies
 - If A and B both shoot but B has no more bullets, B dies
-- If A shoots and B issues an invalid command or their program has exited, B dies
-- If A shoots and B issues a command in more than 500ms, B dies
-- If B has not issued a command within 3s, B dies
+- If A shoots while B issues an invalid command or their program has exited, B dies
+- If B has not issued a command within one second (but their program is still running), B dies. This rule is to avoid bots that will slow the game at each and every turn.
 
 In all other cases, the game continues.
 
@@ -39,3 +40,30 @@ Ammunition
 
 Each player start with 1 bullet in their gun. Shooting always removes a bullet from your gun (except if it's already empty). Reloading always adds a bullet to your gun (except if it already has 6 bullets and is full)
 
+Turns & victory
+^^^^^^^^^^^^^^^
+
+The game stops when an opponent is dead, or when at least one opponent takes more than one second to give its intructions, or after 100 turns.
+
+If there is no winner, the winner will be selected as the one who dodged the least frequently. If both opponent dodged the same amount of time, a winner is randomly selected.
+
+Inputs, outputs, timings
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Here, ``print`` means write in stdout, followed by a newline (`\n`), and ``read``means read from stdin until newline.
+
+The program should print its name (within 10 seconds after the start of the process)
+
+Then, as long as the game is on, the program should loop over the two following action.
+
+The program should print its action for the current turn among ``shoot``, ``dodge`` and ``reload``.
+Then, the program may read the action the opponent did. The action may be ``shoot``, ``dodge``, ``reload``, ``shoot_no_bullet`` if the opponent shot bu had no bullet left, ``stand`` if the opponent sent an invalid command.
+
+A program has one second after it receives the opponent's action to print its own action, otherwise the game will be terminated.
+
+The program
+-----------
+
+.. code::bash
+
+    showdown first command with args -- second command with args

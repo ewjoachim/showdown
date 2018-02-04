@@ -93,9 +93,8 @@ DRAWINGS["clocks"] = [s.strip() for s in r"""
 """.split("\n\n")]
 
 REFRESH_TIME = 0.02
-TURN_TIME = 0.5
 STARTUP_TIME = 10
-TURN_MAX_WAIT_TIME = 3
+TURN_TIME = 1
 TOTAL_TURNS = 15
 MAX_BULLETS = 6
 
@@ -113,7 +112,7 @@ def enqueue_output(out, queue):
     begin = time.time()
     for line in iter(out.readline, b''):
         step = time.time()
-        queue.put((line, step - begin))
+        queue.put(line)
         begin = step
     out.close()
 
@@ -140,6 +139,7 @@ class Contestant:
                 self.call_args,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 bufsize=0, close_fds=True)
         except FileNotFoundError:
             self.exited = True
@@ -157,7 +157,7 @@ class Contestant:
 
     def read_name(self):
         try:
-            name, __ = self.read(timeout=STARTUP_TIME)
+            name = self.read(timeout=STARTUP_TIME)
 
         except TimeoutError:
             self.exited = True
@@ -173,8 +173,8 @@ class Contestant:
 
     def read(self, timeout):
         try:
-            line, elapsed = self.stdout_queue.get(timeout=timeout)
-            return line.decode("utf-8").strip(), elapsed
+            line = self.stdout_queue.get(timeout=timeout)
+            return line.decode("utf-8").strip()
         except queue.Empty:
             raise TimeoutError
 
@@ -192,19 +192,12 @@ class Contestant:
 
         # Read stdout, with a hard timeout
         try:
-            command, duration = self.read(timeout=TURN_MAX_WAIT_TIME)
+            command = self.read(timeout=TURN_TIME)
         except TimeoutError:
-            logger.warning(
-                f"{self.name} took more than {TURN_MAX_WAIT_TIME} "
-                f"to answer.")
-            return Commands.GAME_OVER
-
-        # Check for soft timeout
-        if duration > TURN_TIME:
             logger.warning(
                 f"{self.name} took more than {TURN_TIME} "
                 f"to answer.")
-            return Commands.STAND
+            return Commands.GAME_OVER
 
         # Check for valid command
         try:
@@ -313,11 +306,11 @@ def loop(state):
         winner = list("ab")
         if command_a == Commands.GAME_OVER:
             print(f"{state['a'].name} took more than "
-                  f"{TURN_MAX_WAIT_TIME} to respond")
+                  f"{TURN_TIME} to respond")
             winner.remove("a")
         if command_b == Commands.GAME_OVER:
             print(f"{state['b'].name} took more than "
-                  f"{TURN_MAX_WAIT_TIME} to respond")
+                  f"{TURN_TIME} to respond")
             winner.remove("b")
         winner_key = next(iter(winner), None)
         if winner_key:
