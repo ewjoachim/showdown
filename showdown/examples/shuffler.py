@@ -1,4 +1,18 @@
 #!/usr/bin/env python
+"""
+lHeol, I'm the Shuffler !
+Usage: showdown-example shiffler name n
+
+I will do 2 cycles of n turns alternatively:
+["dodge", "dodge", "dodge", "shoot"].shuffle()
+<--------n times -------->
+then
+["dodge", "dodge", "dodge", "reload"].shuffle()
+<--------n times -------->
+
+It's a safe strategy, but I dodge a lot, so if
+I miss my shots, I probably lose in the end.
+"""
 import random
 import sys
 
