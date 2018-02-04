@@ -95,7 +95,7 @@ DRAWINGS["clocks"] = [s.strip() for s in r"""
 REFRESH_TIME = 0.02
 STARTUP_TIME = 10
 TURN_TIME = 1
-TOTAL_TURNS = 15
+TOTAL_TURNS = 100
 MAX_BULLETS = 6
 
 
@@ -141,6 +141,10 @@ class Contestant:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 bufsize=0, close_fds=True)
+        except PermissionError:
+            self.exited = True
+            print(f"Command '{self.name}': Permission denied")
+            return
         except FileNotFoundError:
             self.exited = True
             print(f"Command '{self.name}' not found")
@@ -159,6 +163,10 @@ class Contestant:
         try:
             name = self.read(timeout=STARTUP_TIME)
 
+        except EOFError:
+            self.exited = True
+            print(f"{self.name} exited")
+            return
         except TimeoutError:
             self.exited = True
             print(f"{self.name} took more than {STARTUP_TIME}"
@@ -172,6 +180,8 @@ class Contestant:
         return name
 
     def read(self, timeout):
+        if self.process.poll() is not None:
+            raise EOFError
         try:
             line = self.stdout_queue.get(timeout=timeout)
             return line.decode("utf-8").strip()
@@ -193,10 +203,14 @@ class Contestant:
         # Read stdout, with a hard timeout
         try:
             command = self.read(timeout=TURN_TIME)
+        except EOFError:
+            logger.warning(
+                f"{self.name} has exited.")
+            return Commands.STAND
         except TimeoutError:
             logger.warning(
                 f"{self.name} took more than {TURN_TIME} "
-                f"to answer.")
+                f"seconds to answer.")
             return Commands.GAME_OVER
 
         # Check for valid command
