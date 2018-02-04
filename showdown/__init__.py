@@ -282,7 +282,7 @@ def setup():
     args = sys.argv[1:]
     try:
         index = args.index("--")
-    except IndexError:
+    except ValueError:
         usage()
 
     call_args_a = args[:index]
