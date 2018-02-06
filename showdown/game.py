@@ -43,6 +43,7 @@ class Contestant:
         self.contestant_name = self.read_name()
         self.bullets = 1
         self.num_dodges = 0
+        self.latest_command = None
 
     @property
     def name(self):
@@ -186,20 +187,24 @@ def usage():
     sys.exit(1)
 
 
-def main():
+def game(state_queue):
     state = {}
     try:
         state = setup()
-        while loop(state):
-            pass
-        finish(state)
+        while True:
+            cont = loop(state, state_queue)
+            if not cont:
+                finish(state, state_queue)
+            write_to_ui_queue(state, state_queue)
+            if not cont:
+                break
     finally:
         clean(state)
 
 
 def setup():
     state = {
-        "turn": 0,
+        "num_turn": 0,
     }
 
     args = sys.argv[1:]
@@ -228,27 +233,23 @@ def setup_logging(name_a, name_b):
     logger.info(f"Starting new showdown: {name_a} vs {name_b}")
 
 
-def loop(state):
-    logger.info(f"Turn {state['turn']} begins")
+def loop(state, state_queue):
+    logger.info(f"Turn {state['num_turn']} begins")
     command_a = state["a"].ask()
+    state["a"].latest_command = command_a
     command_b = state["b"].ask()
+    state["b"].latest_command = command_b
     if Commands.GAME_OVER in (command_a, command_b):
         winner = list("ab")
         if command_a == Commands.GAME_OVER:
-            print(f"{state['a'].name} took more than "
-                  f"{TURN_TIME} to respond")
             winner.remove("a")
         if command_b == Commands.GAME_OVER:
-            print(f"{state['b'].name} took more than "
-                  f"{TURN_TIME} to respond")
             winner.remove("b")
         winner_key = next(iter(winner), None)
         if winner_key:
             state["winner"] = state[winner_key]
         return False
 
-    print(f"{state['a'].name}: {command_a.value}")
-    print(f"{state['b'].name}: {command_b.value}")
     unprotected = [Commands.SHOOT_NO_BULLET, Commands.RELOAD, Commands.STAND]
     if command_a == Commands.SHOOT and command_b in unprotected:
         state["winner"] = state["a"]
@@ -262,16 +263,47 @@ def loop(state):
     state["a"].tell(command_b)
     state["b"].tell(command_a)
 
-    state["turn"] += 1
+    state["num_turn"] += 1
 
-    if state["turn"] >= TOTAL_TURNS:
+    if state["num_turn"] >= TOTAL_TURNS:
         return False
 
     return True
 
+def write_to_ui_queue(state, state_queue):
+    if "description" in state:
+        description = state["description"]
+    else:
 
-def finish(state):
+        description = f"un truc au pif"
+
+    new_state = {
+        "num_turn": state["num_turn"],
+        "description": description,
+        "a": {
+            "name": state["a"].name,
+            "bullets": state["a"].bullets,
+            "command": state["a"].latest_command.value,
+            "num_dodges": state["a"].num_dodges
+        },
+        "b": {
+            "name": state["b"].name,
+            "bullets": state["b"].bullets,
+            "command": state["b"].latest_command.value,
+            "num_dodges": state["b"].num_dodges
+        },
+    }
+
+    if "winner" in state:
+        winner_key = "a" if state["winner"] is state["a"] else "b"
+        new_state["winner_key"] = winner_key
+
+    state_queue.put(new_state)
+
+
+def finish(state, state_queue):
     winner = state.get('winner')
+    description = ""
     if not winner:
         diff_dodges = state["a"].num_dodges - state["b"].num_dodges
         if diff_dodges:
@@ -279,12 +311,16 @@ def finish(state):
                 winner = state["a"]
             elif diff_dodges > 0:
                 winner = state["b"]
-            print(f"{winner.name} wins by having dodged {abs(diff_dodges)} times less")
+            description = (f"{winner.name} wins by having dodged "
+                           f"{abs(diff_dodges)} times less")
         else:
-            print("Toss a coin")
             winner = random.choice([state["a"], state["b"]])
+            description = f"Toss a coin: {winner.name} wins."
+    else:
+        description = f"{winner.name} wins"
 
-    print(f"{winner.name} won")
+    state['winner'] = winner
+    state['description'] = description
 
 
 def clean(state):
@@ -296,7 +332,3 @@ def clean(state):
         state["b"].kill()
     except KeyError:
         pass
-
-
-if __name__ == '__main__':
-    main()

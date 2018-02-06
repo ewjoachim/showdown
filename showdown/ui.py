@@ -1,6 +1,9 @@
 import curses
 import queue
 import time
+import threading
+
+from showdown import game
 
 
 DRAWINGS = dict(zip(
@@ -100,9 +103,9 @@ def loop(window, states_queue):
     curses.curs_set(0)
     window.nodelay(True)
 
-    while True:
+    state = states_queue.get()
+    while draw_state(state=state, window=window):
         state = states_queue.get()
-        draw_state(state=state, window=window)
 
 
 def draw_state(state, window):
@@ -114,6 +117,10 @@ def draw_state(state, window):
         turn_step = (time.time() - begin) / TURN_DURATION
     if "winner_key" in state:
         draw_step(0, state, window, end=True)
+        time.sleep(3)
+        return False
+    else:
+        return True
 
 
 def mirror_character(drawing_lines):
@@ -209,59 +216,25 @@ def draw_step(turn_step, state, window, end=False):
     window.refresh()
     curses.update_lines_cols()
 
-if __name__ == '__main__':
-    states_queue = queue.Queue()
-    states = [
-        {
-            "num_turn": 0,
-            "description": "Joe shoots, Avrell dodges",
-            "a": {
-                "name": "Joe",
-                "bullets": 0,
-                "command": "shoot",
-                "num_dodges": 0,
-            },
-            "b": {
-                "name": "Avrell",
-                "bullets": 1,
-                "command": "dodge",
-                "num_dodges": 1,
-            },
-        },
-        {
-            "num_turn": 1,
-            "description": "Joe dodges, Avrell reloads",
-            "a": {
-                "name": "Joe",
-                "bullets": 0,
-                "command": "dodge",
-                "num_dodges": 1,
-            },
-            "b": {
-                "name": "Avrell",
-                "bullets": 2,
-                "command": "reload",
-                "num_dodges": 1,
-            },
-        },
-        {
-            "num_turn": 0,
-            "winner_key": "b",
-            "description": "Joe sent an invalid command ('sh00t'), Avrell shoots",
-            "a": {
-                "name": "Joe",
-                "bullets": 1,
-                "command": "stand",
-                "num_dodges": 0,
-            },
-            "b": {
-                "name": "Avrell",
-                "bullets": 1,
-                "command": "shoot",
-                "num_dodges": 0,
-            },
-        },
-    ]
-    for state in states:
-        states_queue.put(state)
-    ui(states_queue)
+def main():
+    state_queue = queue.Queue()
+
+    thread = threading.Thread(
+            target=ui,
+            args=(state_queue,))
+
+    state = {}
+    try:
+        state = game.setup()
+        thread.start()
+        while True:
+            cont = game.loop(state, state_queue)
+            if not cont:
+                game.finish(state, state_queue)
+            game.write_to_ui_queue(state, state_queue)
+            if not cont:
+                break
+    finally:
+        game.clean(state)
+
+    thread.join()
