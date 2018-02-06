@@ -66,4 +66,4 @@ The program
 
 .. code::bash
 
-    showdown first command with args -- second command with args
+    showdown first command with args -vs- second command with args
