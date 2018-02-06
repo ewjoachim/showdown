@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import curses
 import enum
 import errno
 import io
@@ -10,90 +9,9 @@ import random
 import subprocess
 import sys
 import threading
-import time
 
 logger = logging.getLogger(__file__)
 
-
-DRAWINGS = dict(zip(
-    "shoot dodge reload stand bang click bullet eye eye-dead initial".split(),
-    (s.strip() for s in r"""
-__M__
-(  o)
- (i)_;=
- u u
-
-__M__  ___
-(  o) / | \
- (i)  | | |
- u u  \_|_/
-
- __M__
-.(o  )
-=; (i)
-   u u
-
-__M__
-(  o)
- (i)
- u u
-
-!BANG!
-
-.click.
-
--
-
-o
-
-x
-
-i
-""".split("\n\n"))))
-
-DRAWINGS["clocks"] = [s.strip() for s in r"""
- ___
-/ | \
-\   /
- ¯¯¯
-
- ___
-/  /\
-\   /
- ¯¯¯
-
- ___
-/  _\
-\   /
- ¯¯¯
-
- ___
-/   \
-\  \/
- ¯¯¯
-
- ___
-/   \
-\ | /
- ¯¯¯
-
- ___
-/   \
-\/  /
- ¯¯¯
-
- ___
-/_  \
-\   /
- ¯¯¯
-
- ___
-/\  \
-\   /
- ¯¯¯
-""".split("\n\n")]
-
-REFRESH_TIME = 0.02
 STARTUP_TIME = 10
 TURN_TIME = 1
 TOTAL_TURNS = 100
@@ -110,11 +28,8 @@ class Commands(enum.Enum):
 
 
 def enqueue_output(out, queue):
-    begin = time.time()
     for line in iter(out.readline, b''):
-        step = time.time()
         queue.put(line)
-        begin = step
     out.close()
 
 
@@ -267,7 +182,7 @@ class Contestant:
 
 
 def usage():
-    print(f"Usage: {sys.argv[0]} program_a args -- program_b args")
+    print(f"Usage: {sys.argv[0]} program_a args -vs- program_b args")
     sys.exit(1)
 
 
@@ -289,7 +204,7 @@ def setup():
 
     args = sys.argv[1:]
     try:
-        index = args.index("--")
+        index = args.index("-vs-")
     except ValueError:
         usage()
 
