@@ -390,28 +390,28 @@ def draw_turns(window, state, total_width):
          y=6,
          drawing=[f"{state['num_turn']:03}"])
 
-
 def write_to_ui_queue(state, state_queue):
+    a = state["a"]
+    b = state["b"]
     if "description" in state:
         description = state["description"]
     else:
-
-        description = f"un truc au pif"
+        description = f"{a.description} {b.description}"
 
     new_state = {
         "num_turn": state["num_turn"],
         "description": description,
         "a": {
-            "name": state["a"].name,
-            "bullets": state["a"].bullets,
-            "command": state["a"].latest_command.value,
-            "num_dodges": state["a"].num_dodges
+            "name": a.name,
+            "bullets": a.num_bullets,
+            "command": a.latest_command.value,
+            "num_dodges": a.num_dodges
         },
         "b": {
-            "name": state["b"].name,
-            "bullets": state["b"].bullets,
-            "command": state["b"].latest_command.value,
-            "num_dodges": state["b"].num_dodges
+            "name": b.name,
+            "bullets": b.num_bullets,
+            "command": b.latest_command.value,
+            "num_dodges": b.num_dodges
         },
     }
 

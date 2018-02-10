@@ -5,6 +5,7 @@ import queue
 import random
 import subprocess
 import sys
+import time
 import threading
 
 logger = logging.getLogger(__file__)
@@ -55,7 +56,7 @@ class Contestant:
         if self.exited:
             return
         self.contestant_name = self.read_name()
-        self.bullets = 1
+        self.num_bullets = 1
         self.num_dodges = 0
         self.latest_command = None
 
@@ -63,6 +64,17 @@ class Contestant:
     def name(self):
         return getattr(self, "contestant_name",
                        " ".join(self.call_args))
+
+    @property
+    def description(self):
+        if self.latest_command == Commands.SHOOT:
+            return f"{self.name} shoots."
+        elif self.latest_command == Commands.RELOAD:
+            return f"{self.name} reloads."
+        elif self.latest_command == Commands.DODGE:
+            return f"{self.name} hides behind a barrel."
+        elif self.latest_command == Commands.STAND:
+            return f"{self.name} issues an invalid command."
 
     def start(self):
         try:
@@ -91,6 +103,7 @@ class Contestant:
         self.stdout_thread.start()
 
     def read_name(self):
+        time.sleep(0.1)
         try:
             name = self.read(timeout=STARTUP_TIME)
 
@@ -160,8 +173,8 @@ class Contestant:
 
         # Update internal state for shoot
         if command == Commands.SHOOT:
-            if self.bullets:
-                self.bullets -= 1
+            if self.num_bullets:
+                self.num_bullets -= 1
             else:
                 logger.info(f"{self.name} shot but without bullets")
 
@@ -169,10 +182,10 @@ class Contestant:
 
         # Update internal state for reload
         if command == Commands.RELOAD:
-            if self.bullets == MAX_BULLETS:
+            if self.num_bullets == MAX_BULLETS:
                 logger.info(f"{self.name} reloaded but already full")
             else:
-                self.bullets += 1
+                self.num_bullets += 1
 
         # Update internal state for reload
         if command == Commands.DODGE:
@@ -182,6 +195,8 @@ class Contestant:
         return command
 
     def tell(self, command):
+        logger.debug(f"Telling {self.name} that opponent did: "
+                     f"{command.value}")
         self.process.stdin.write(
             command.value.encode("utf-8") + b"\n")
         self.process.stdin.flush()
@@ -189,6 +204,7 @@ class Contestant:
 
     def kill(self):
         # TODO log stderr
+        logger.info(f"Killing {self.name}")
         self.exited = True
         try:
             self.process.stdin.close()
@@ -229,23 +245,36 @@ def loop(state):
     state["b"].latest_command = command_b
     if Commands.GAME_OVER in (command_a, command_b):
         winners = list("ab")
+        descriptions = []
         if command_a == Commands.GAME_OVER:
             winners.remove("a")
+            descriptions.append(
+                f"{state['a'].name} takes too long to answer.")
         if command_b == Commands.GAME_OVER:
             winners.remove("b")
+            descriptions.append(
+                f"{state['b'].name} takes too long to answer.")
+        state["description"] = " ".join(descriptions)
+        logger.info(state["description"])
         winner_key = next(iter(winners), None)
         if winner_key:
             state["winner_key"] = winner_key
+
         return False
 
     unprotected = [Commands.SHOOT_NO_BULLET, Commands.RELOAD, Commands.STAND]
     if command_a == Commands.SHOOT and command_b in unprotected:
         state["winner_key"] = "a"
-        logger.info(f"{state['a'].name} shot {state['b'].name}")
+        description = f"{state['a'].name} shoots {state['b'].name}"
+        logger.info(description)
+        state["description"] = description
+
         return False
     if command_b == Commands.SHOOT and command_a in unprotected:
         state["winner_key"] = "b"
-        logger.info(f"{state['b'].name} shot {state['a'].name}")
+        description = f"{state['b'].name} shoots {state['a'].name}"
+        logger.info(description)
+        state["description"] = description
         return False
 
     state["a"].tell(command_b)
@@ -259,8 +288,10 @@ def loop(state):
 
 def finish(state):
     winner_key = state.get('winner_key')
-    description = ""
+
     if not winner_key:
+        logger.info(f"{state['a'].name} dodged {state['a'].num_dodges} times")
+        logger.info(f"{state['b'].name} dodged {state['b'].num_dodges} times")
         diff_dodges = state["a"].num_dodges - state["b"].num_dodges
         if diff_dodges:
             if diff_dodges < 0:
@@ -273,12 +304,11 @@ def finish(state):
             winner_key = random.choice("ab")
             description = "Toss a coin: {winner.name} wins."
 
-    else:
-        description = "{winner.name} wins"
+        state['description'] = description.format(
+            winner=state[winner_key])
 
-    winner = state[winner_key]
     state['winner_key'] = winner_key
-    state['description'] = description.format(winner=winner)
+    logger.info(state['description'])
 
 
 def clean(state):
