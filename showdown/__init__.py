@@ -40,6 +40,7 @@ def bulk():
     except ValueError:
         print(f"n should be an integer")
         usage()
+
     call_args_a, call_args_b = split_args(sys.argv[1:])
     run_game_bulk(n, call_args_a, call_args_b)
 

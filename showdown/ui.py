@@ -226,16 +226,43 @@ def draw_step(window, turn_step, state, end=False):
     command_a = state["a"]["command"]
     command_b = state["b"]["command"]
 
-    draw_clock(window, turn_step, total_width)
-    draw_characters(window, state, end, command_a, command_b,
-                    a_x, b_x, characters_y)
-    draw_description(window, state, total_width, total_height)
-    draw_bullets(window, turn_step, command_a, command_b,
-                 a_x, b_x, characters_y, end)
-    draw_noises(window, turn_step, command_a, command_b,
-                a_x, b_x, characters_y, end)
-    draw_boxes(window, state, total_width)
-    draw_turns(window, state, total_width)
+    draw_clock(window=window,
+               turn_step=turn_step,
+               total_width=total_width)
+    draw_characters(window=window,
+                    state=state,
+                    end=end,
+                    command_a=command_a,
+                    command_b=command_b,
+                    a_x=a_x,
+                    b_x=b_x,
+                    characters_y=charcters_y)
+    draw_description(window=window,
+                     state=state,
+                     total_width=total_width,
+                     total_height=total_height)
+    draw_bullets(window=window,
+                 turn_step=turn_step,
+                 command_a=command_a,
+                 command_b=command_b,
+                 a_x=a_x,
+                 b_x=b_x,
+                 characters_y=characters_y,
+                 end=end)
+    draw_noises(window=window,
+                turn_step=turn_step,
+                command_a=command_a,
+                command_b=command_b,
+                a_x=a_x,
+                b_x=b_x,
+                characters_y=characters_y,
+                end=end)
+    draw_boxes(window=window,
+               state=state,
+               total_width=total_width)
+    draw_turns(window=window,
+               state=state,
+               total_width=total_width)
 
 
 def draw_clock(window, turn_step, total_width):
