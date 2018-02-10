@@ -187,21 +187,6 @@ def usage():
     sys.exit(1)
 
 
-def game(state_queue):
-    state = {}
-    try:
-        state = setup()
-        while True:
-            cont = loop(state, state_queue)
-            if not cont:
-                finish(state, state_queue)
-            write_to_ui_queue(state, state_queue)
-            if not cont:
-                break
-    finally:
-        clean(state)
-
-
 def setup():
     state = {
         "num_turn": 0,
@@ -234,6 +219,7 @@ def setup_logging(name_a, name_b):
 
 
 def loop(state, state_queue):
+    state["num_turn"] += 1
     logger.info(f"Turn {state['num_turn']} begins")
     command_a = state["a"].ask()
     state["a"].latest_command = command_a
@@ -262,8 +248,6 @@ def loop(state, state_queue):
 
     state["a"].tell(command_b)
     state["b"].tell(command_a)
-
-    state["num_turn"] += 1
 
     if state["num_turn"] >= TOTAL_TURNS:
         return False
