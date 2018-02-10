@@ -18,6 +18,19 @@ TOTAL_TURNS = 100
 MAX_BULLETS = 6
 
 
+def run_game(call_args_a, call_args_b):
+    state = {}
+    try:
+        state = setup(call_args_a, call_args_b)
+        while loop(state):
+            pass
+        finish(state)
+    finally:
+        clean(state)
+
+    return state
+
+
 class Commands(enum.Enum):
     STAND = "stand"
     SHOOT = "shoot"
@@ -27,10 +40,14 @@ class Commands(enum.Enum):
     GAME_OVER = "game_over"
 
 
-def enqueue_output(out, queue):
-    for line in iter(out.readline, b''):
-        queue.put(line)
-    out.close()
+def enqueue_output(contestant):
+    try:
+        for line in iter(contestant.process.stdout.readline, b''):
+            contestant.stdout_queue.put(line)
+    except ValueError:
+        pass
+
+    contestant.process.stdout.close()
 
 
 class Contestant:
@@ -70,7 +87,7 @@ class Contestant:
         self.stdout_queue = queue.Queue(maxsize=1 + TOTAL_TURNS)
         self.stdout_thread = threading.Thread(
             target=enqueue_output,
-            args=(self.process.stdout, self.stdout_queue))
+            args=(self,))
 
         # thread dies with the program
         self.stdout_thread.daemon = True
@@ -175,31 +192,19 @@ class Contestant:
 
     def kill(self):
         # TODO log stderr
+        self.exited = True
         try:
             self.process.stdin.close()
+            self.process.stdout.close()
+            self.process.stderr.close()
             self.process.kill()
         except AttributeError:
             pass
 
-
-def usage():
-    print(f"Usage: {sys.argv[0]} program_a args -vs- program_b args")
-    sys.exit(1)
-
-
-def setup():
+def setup(call_args_a, call_args_b):
     state = {
         "num_turn": 0,
     }
-
-    args = sys.argv[1:]
-    try:
-        index = args.index("-vs-")
-    except ValueError:
-        usage()
-
-    call_args_a = args[:index]
-    call_args_b = args[index + 1:]
 
     state["a"] = Contestant(call_args_a)
     state["b"] = Contestant(call_args_b)
@@ -218,7 +223,7 @@ def setup_logging(name_a, name_b):
     logger.info(f"Starting new showdown: {name_a} vs {name_b}")
 
 
-def loop(state, state_queue):
+def loop(state):
     state["num_turn"] += 1
     logger.info(f"Turn {state['num_turn']} begins")
     command_a = state["a"].ask()
@@ -226,23 +231,23 @@ def loop(state, state_queue):
     command_b = state["b"].ask()
     state["b"].latest_command = command_b
     if Commands.GAME_OVER in (command_a, command_b):
-        winner = list("ab")
+        winners = list("ab")
         if command_a == Commands.GAME_OVER:
-            winner.remove("a")
+            winners.remove("a")
         if command_b == Commands.GAME_OVER:
-            winner.remove("b")
-        winner_key = next(iter(winner), None)
+            winners.remove("b")
+        winner_key = next(iter(winners), None)
         if winner_key:
-            state["winner"] = state[winner_key]
+            state["winner_key"] = winner_key
         return False
 
     unprotected = [Commands.SHOOT_NO_BULLET, Commands.RELOAD, Commands.STAND]
     if command_a == Commands.SHOOT and command_b in unprotected:
-        state["winner"] = state["a"]
+        state["winner_key"] = "a"
         logger.info(f"{state['a'].name} shot {state['b'].name}")
         return False
     if command_b == Commands.SHOOT and command_a in unprotected:
-        state["winner"] = state["b"]
+        state["winner_key"] = "b"
         logger.info(f"{state['b'].name} shot {state['a'].name}")
         return False
 
@@ -254,57 +259,29 @@ def loop(state, state_queue):
 
     return True
 
-def write_to_ui_queue(state, state_queue):
-    if "description" in state:
-        description = state["description"]
-    else:
 
-        description = f"un truc au pif"
-
-    new_state = {
-        "num_turn": state["num_turn"],
-        "description": description,
-        "a": {
-            "name": state["a"].name,
-            "bullets": state["a"].bullets,
-            "command": state["a"].latest_command.value,
-            "num_dodges": state["a"].num_dodges
-        },
-        "b": {
-            "name": state["b"].name,
-            "bullets": state["b"].bullets,
-            "command": state["b"].latest_command.value,
-            "num_dodges": state["b"].num_dodges
-        },
-    }
-
-    if "winner" in state:
-        winner_key = "a" if state["winner"] is state["a"] else "b"
-        new_state["winner_key"] = winner_key
-
-    state_queue.put(new_state)
-
-
-def finish(state, state_queue):
-    winner = state.get('winner')
+def finish(state):
+    winner_key = state.get('winner_key')
     description = ""
-    if not winner:
+    if not winner_key:
         diff_dodges = state["a"].num_dodges - state["b"].num_dodges
         if diff_dodges:
             if diff_dodges < 0:
-                winner = state["a"]
+                winner_key = "a"
             elif diff_dodges > 0:
-                winner = state["b"]
-            description = (f"{winner.name} wins by having dodged "
-                           f"{abs(diff_dodges)} times less")
+                winner_key = "b"
+            description = ("{winner.name} wins by having dodged "
+                           "{abs(diff_dodges)} times less")
         else:
-            winner = random.choice([state["a"], state["b"]])
-            description = f"Toss a coin: {winner.name} wins."
-    else:
-        description = f"{winner.name} wins"
+            winner_key = random.choice("ab")
+            description = "Toss a coin: {winner.name} wins."
 
-    state['winner'] = winner
-    state['description'] = description
+    else:
+        description = "{winner.name} wins"
+
+    winner = state[winner_key]
+    state['winner_key'] = winner_key
+    state['description'] = description.format(winner=winner)
 
 
 def clean(state):

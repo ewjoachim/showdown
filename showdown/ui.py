@@ -297,32 +297,34 @@ def draw_step(turn_step, state, window, end=False):
 
     # Noises
     noisy_commands = "shoot shoot_no_bullet reload".split()
-    if not end and turn_step < 0.5 and command_a in noisy_commands:
-        if command_a == "shoot":
-            draw(window=window,
-                 x=a_x + CHARACTER_SIZE - 2, y=a_y + 1,
-                 drawing=[DRAWINGS["bang"]])
-        elif command_a == "shoot_no_bullet":
-            draw(window=window,
-                 x=a_x + CHARACTER_SIZE - 2, y=a_y + 1,
-                 drawing=[DRAWINGS["click"]])
-        else:  # reload
-            draw(window=window,
-                 x=a_x +  - 2 - len(DRAWINGS["click"]), y=a_y + 1,
-                 drawing=[DRAWINGS["click"]])
+    if not end and turn_step < 0.5:
+        if command_a in noisy_commands:
+            if command_a == "shoot":
+                draw(window=window,
+                     x=a_x + CHARACTER_SIZE - 2, y=a_y + 1,
+                     drawing=[DRAWINGS["bang"]])
+            elif command_a == "shoot_no_bullet":
+                draw(window=window,
+                     x=a_x + CHARACTER_SIZE - 2, y=a_y + 1,
+                     drawing=[DRAWINGS["click"]])
+            else:  # reload
+                draw(window=window,
+                     x=a_x +  - 2 - len(DRAWINGS["click"]), y=a_y + 1,
+                     drawing=[DRAWINGS["click"]])
 
-        if command_b == "shoot":
-            draw(window=window,
-                 x=b_x + 2 - len(DRAWINGS["bang"]), y=b_y + 1,
-                 drawing=[DRAWINGS["bang"]])
-        elif command_b == "shoot_no_bullet":
-            draw(window=window,
-                 x=b_x + 2 - len(DRAWINGS["click"]), y=b_y + 1,
-                 drawing=[DRAWINGS["click"]])
-        else:  # reload
-            draw(window=window,
-                 x=b_x + CHARACTER_SIZE + 2, y=b_y + 1,
-                 drawing=[DRAWINGS["click"]])
+        if command_b in noisy_commands:
+            if command_b == "shoot":
+                draw(window=window,
+                     x=b_x + 2 - len(DRAWINGS["bang"]), y=b_y + 1,
+                     drawing=[DRAWINGS["bang"]])
+            elif command_b == "shoot_no_bullet":
+                draw(window=window,
+                     x=b_x + 2 - len(DRAWINGS["click"]), y=b_y + 1,
+                     drawing=[DRAWINGS["click"]])
+            else:  # reload
+                draw(window=window,
+                     x=b_x + CHARACTER_SIZE + 2, y=b_y + 1,
+                     drawing=[DRAWINGS["click"]])
 
     # Boxes with info at the top
     draw_box(window=window,
@@ -360,7 +362,38 @@ def draw_step(turn_step, state, window, end=False):
          y=6,
          drawing=[f"{state['num_turn']:03}"])
 
-def main():
+
+def write_to_ui_queue(state, state_queue):
+    if "description" in state:
+        description = state["description"]
+    else:
+
+        description = f"un truc au pif"
+
+    new_state = {
+        "num_turn": state["num_turn"],
+        "description": description,
+        "a": {
+            "name": state["a"].name,
+            "bullets": state["a"].bullets,
+            "command": state["a"].latest_command.value,
+            "num_dodges": state["a"].num_dodges
+        },
+        "b": {
+            "name": state["b"].name,
+            "bullets": state["b"].bullets,
+            "command": state["b"].latest_command.value,
+            "num_dodges": state["b"].num_dodges
+        },
+    }
+
+    if "winner_key" in state:
+        new_state["winner_key"] = state["winner_key"]
+
+    state_queue.put(new_state)
+
+
+def run_game_ui(call_args_a, call_args_b):
     state_queue = queue.Queue()
 
     thread = threading.Thread(
@@ -369,13 +402,13 @@ def main():
 
     state = {}
     try:
-        state = game.setup()
+        state = game.setup(call_args_a, call_args_b)
         thread.start()
         while True:
-            cont = game.loop(state, state_queue)
+            cont = game.loop(state)
             if not cont:
-                game.finish(state, state_queue)
-            game.write_to_ui_queue(state, state_queue)
+                game.finish(state)
+            write_to_ui_queue(state, state_queue)
             if not cont:
                 break
     finally:
