@@ -16,7 +16,7 @@ I miss my shots, I probably lose in the end.
 import random
 import sys
 
-name, n = sys.argv[1:]
+name, n = sys.argv[1:]  # pylint: disable=unbalanced-tuple-unpacking
 print(name)
 n = int(n)
 k = n + 1

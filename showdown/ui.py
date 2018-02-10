@@ -108,6 +108,7 @@ REFRESH_TIME = 0.02
 TURN_TIME = 1.
 ENDING_TIME = 3.
 
+DISTANCE = 40
 
 def ui(states_queue):
     curses.wrapper(loop, states_queue)
@@ -133,7 +134,7 @@ def loop(window, states_queue):
         time.sleep(REFRESH_TIME)
         window.erase()
         if get_keypress(window) == "q":
-                sys.exit(0)
+            sys.exit(0)
 
 
 def draw_states(states_queue, window):
@@ -145,7 +146,7 @@ def draw_states(states_queue, window):
         if "winner_key" in state:
             begin = time.time()
             while time.time() - begin < ENDING_TIME:
-                draw_step(0, state, window, end=True)
+                draw_step(window, 0, state, end=True)
                 yield
             break
 
@@ -159,7 +160,7 @@ def draw_state(state, window):
     begin = time.time()
     turn_step = 0.
     while turn_step < 1.:
-        draw_step(turn_step, state, window)
+        draw_step(window, turn_step, state)
         yield
         turn_step = (time.time() - begin) / TURN_TIME
 
@@ -204,7 +205,7 @@ def draw(window, x, y, drawing):
         window.addstr(y + i, x + spaces, line.lstrip())
 
 def draw_box(window, x1, y1, x2, y2,
-             horizontal="-", vertical="|", corner="+"):
+             horizontal="-", vertical="|", corner="+"):  # pylint: disable=unbalanced-tuple-unpacking
     draw(window, x1 + 1, y1, [horizontal * (x2 - x1 - 1)])
     draw(window, x1 + 1, y2, [horizontal * (x2 - x1 - 1)])
     draw(window, x1, y1 + 1, [vertical] * (y2 - y1 - 1))
@@ -214,9 +215,30 @@ def draw_box(window, x1, y1, x2, y2,
     draw(window, x2, y1, [corner])
     draw(window, x2, y2, [corner])
 
-def draw_step(turn_step, state, window, end=False):
+def draw_step(window, turn_step, state, end=False):
     total_height, total_width = window.getmaxyx()
 
+    a_x = ((total_width - DISTANCE) // 2)  - CHARACTER_SIZE
+    b_x = int((total_width + DISTANCE) // 2)
+
+    characters_y = total_height - 5 - DRAWINGS["shoot"].count("\n")
+
+    command_a = state["a"]["command"]
+    command_b = state["b"]["command"]
+
+    draw_clock(window, turn_step, total_width)
+    draw_characters(window, state, end, command_a, command_b,
+                    a_x, b_x, characters_y)
+    draw_description(window, state, total_width, total_height)
+    draw_bullets(window, turn_step, command_a, command_b,
+                 a_x, b_x, characters_y, end)
+    draw_noises(window, turn_step, command_a, command_b,
+                a_x, b_x, characters_y, end)
+    draw_boxes(window, state, total_width)
+    draw_turns(window, state, total_width)
+
+
+def draw_clock(window, turn_step, total_width):
     # Clock
     clock = DRAWINGS["clocks"][int(turn_step * len(DRAWINGS["clocks"]))]
     clock_lines = clock.splitlines()
@@ -225,9 +247,10 @@ def draw_step(turn_step, state, window, end=False):
 
     draw(window=window, x=clock_x, y=clock_y, drawing=clock_lines)
 
+
+def draw_characters(window, state, end, command_a, command_b,
+                    a_x, b_x, characters_y):
     # Characters
-    command_a = state["a"]["command"]
-    command_b = state["b"]["command"]
 
     drawing_a = DRAWINGS[command_a].replace(
         DRAWINGS["initial"], state["a"]["name"][0])
@@ -246,23 +269,18 @@ def draw_step(turn_step, state, window, end=False):
     drawing_lines_a = drawing_a.splitlines()
     drawing_lines_b = mirror_character(drawing_b.splitlines())
 
-    distance = 40
-    a_x = ((total_width - distance) // 2)  - CHARACTER_SIZE
-    a_y = total_height - 5 - len(drawing_lines_b)
-
     draw(window=window,
          x=a_x,
-         y=a_y,
+         y=characters_y,
          drawing=drawing_lines_a)
-
-    b_x = int((total_width + distance) // 2)
-    b_y = a_y
 
     draw(window=window,
          x=b_x,
-         y=b_y,
+         y=characters_y,
          drawing=drawing_lines_b)
 
+
+def draw_description(window, state, total_width, total_height):
     # Description
     description = state["description"]
     description_x = (total_width - len(description)) // 2
@@ -273,59 +291,67 @@ def draw_step(turn_step, state, window, end=False):
          y=description_y,
          drawing=[description])
 
+
+def draw_bullets(window, turn_step, command_a, command_b,
+                 a_x, b_x, characters_y, end):
     shoot_a = command_a == "shoot"
     shoot_b = command_b == "shoot"
 
     # Flying bullets
     if not end:
-        bullet_y = a_y + 2
+        bullet_y = characters_y + 2
 
         if shoot_a:
-            bullet_ax = a_x + CHARACTER_SIZE + int(distance * turn_step)
+            bullet_ax = a_x + CHARACTER_SIZE + int(DISTANCE * turn_step)
             if not (turn_step > 0.5 and shoot_b):
                 draw(window=window,
                      x=bullet_ax, y=bullet_y,
                      drawing=[DRAWINGS["bullet"]])
 
         if shoot_b:
-            bullet_ax = b_x - int(distance * turn_step)
+            bullet_ax = b_x - int(DISTANCE * turn_step)
 
             if not (turn_step > 0.5 and shoot_a):
                 draw(window=window,
                      x=bullet_ax, y=bullet_y,
                      drawing=[DRAWINGS["bullet"]])
 
+
+def draw_noises(window, turn_step, command_a, command_b,
+                a_x, b_x, characters_y, end):
     # Noises
     noisy_commands = "shoot shoot_no_bullet reload".split()
     if not end and turn_step < 0.5:
         if command_a in noisy_commands:
             if command_a == "shoot":
                 draw(window=window,
-                     x=a_x + CHARACTER_SIZE - 2, y=a_y + 1,
+                     x=a_x + CHARACTER_SIZE - 2, y=characters_y + 1,
                      drawing=[DRAWINGS["bang"]])
             elif command_a == "shoot_no_bullet":
                 draw(window=window,
-                     x=a_x + CHARACTER_SIZE - 2, y=a_y + 1,
+                     x=a_x + CHARACTER_SIZE - 2, y=characters_y + 1,
                      drawing=[DRAWINGS["click"]])
             else:  # reload
                 draw(window=window,
-                     x=a_x +  - 2 - len(DRAWINGS["click"]), y=a_y + 1,
+                     x=a_x +  - 2 - len(DRAWINGS["click"]), y=characters_y + 1,
                      drawing=[DRAWINGS["click"]])
 
         if command_b in noisy_commands:
             if command_b == "shoot":
                 draw(window=window,
-                     x=b_x + 2 - len(DRAWINGS["bang"]), y=b_y + 1,
+                     x=b_x + 2 - len(DRAWINGS["bang"]), y=characters_y + 1,
                      drawing=[DRAWINGS["bang"]])
             elif command_b == "shoot_no_bullet":
                 draw(window=window,
-                     x=b_x + 2 - len(DRAWINGS["click"]), y=b_y + 1,
+                     x=b_x + 2 - len(DRAWINGS["click"]), y=characters_y + 1,
                      drawing=[DRAWINGS["click"]])
             else:  # reload
                 draw(window=window,
-                     x=b_x + CHARACTER_SIZE + 2, y=b_y + 1,
+                     x=b_x + CHARACTER_SIZE + 2, y=characters_y + 1,
                      drawing=[DRAWINGS["click"]])
 
+
+def draw_boxes(window, state, total_width):
     # Boxes with info at the top
     draw_box(window=window,
              x1=total_width // 6, y1=2,
@@ -356,6 +382,8 @@ def draw_step(turn_step, state, window, end=False):
          y=5,
          drawing=[DRAWINGS["stacked-bullet"] * state["b"]["bullets"]])
 
+
+def draw_turns(window, state, total_width):
     # Turns
     draw(window=window,
          x=total_width // 2 - 2,

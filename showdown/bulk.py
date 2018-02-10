@@ -4,7 +4,7 @@ from showdown.game import run_game
 def run_game_bulk(n, call_args_a, call_args_b):
     a_victories = 0
     b_victories = 0
-    for i in range(n):
+    for __ in range(n):
         state = run_game(call_args_a, call_args_b)
         if state["winner_key"] == "a":
             a_victories += 1

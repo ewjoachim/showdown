@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 import enum
-import errno
-import io
 import logging
-import os
 import queue
 import random
 import subprocess
@@ -100,12 +97,12 @@ class Contestant:
         except EOFError:
             self.exited = True
             print(f"{self.name} exited")
-            return
+            return None
         except TimeoutError:
             self.exited = True
             print(f"{self.name} took more than {STARTUP_TIME}"
                   " seconds to output its name")
-            return
+            return None
 
         if not name:
             print(f"{self.name} didn't send its name")

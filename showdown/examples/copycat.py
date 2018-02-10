@@ -6,10 +6,9 @@ Usage: showdown-example copycat name first
 I will do the action you give me as first action
 and then I will repeat my opponent's action
 """
-import random
 import sys
 
-name, first = sys.argv[1:]
+name, first = sys.argv[1:]  # pylint: disable=unbalanced-tuple-unpacking
 print(name)
 
 print(first)
