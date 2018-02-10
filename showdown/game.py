@@ -9,6 +9,7 @@ import time
 import threading
 
 logger = logging.getLogger(__file__)
+logging.basicConfig(level="INFO")
 
 STARTUP_TIME = 10
 TURN_TIME = 1
@@ -109,16 +110,22 @@ class Contestant:
 
         except EOFError:
             self.exited = True
-            print(f"{self.name} exited")
+            logger.warning(f"{self.name} exited")
+            logger.warning(f"{self.name} stderr: {self.process.stderr.read()}")
+            logger.warning(f"{self.name} exit code: {self.process.poll()}")
+
             return None
         except TimeoutError:
             self.exited = True
-            print(f"{self.name} took more than {STARTUP_TIME}"
-                  " seconds to output its name")
+            logger.warning(
+                f"{self.name} took more than {STARTUP_TIME}"
+                f" seconds to output its name")
+            self.kill()
+
             return None
 
         if not name:
-            print(f"{self.name} didn't send its name")
+            logger.warning(f"{self.name} didn't send its name")
             self.exited = True
 
         return name
@@ -203,7 +210,6 @@ class Contestant:
 
 
     def kill(self):
-        # TODO log stderr
         logger.info(f"Killing {self.name}")
         self.exited = True
         try:
@@ -213,6 +219,8 @@ class Contestant:
             self.process.kill()
         except AttributeError:
             pass
+        logger.info(f"{self.name} exit code: {self.process.poll()}")
+
 
 def setup(call_args_a, call_args_b):
     state = {
@@ -233,6 +241,7 @@ def setup_logging(name_a, name_b):
     hdlr.setFormatter(formatter)
     logger.addHandler(hdlr)
     logger.setLevel(logging.DEBUG)
+    logger.propagate = False
     logger.info(f"Starting new showdown: {name_a} vs {name_b}")
 
 
