@@ -105,7 +105,7 @@ o-----o
 """.split("\n\n")]
 
 REFRESH_TIME = 0.02
-TURN_TIME = 1.
+TURN_TIME = .5
 ENDING_TIME = 3.
 
 DISTANCE = 40

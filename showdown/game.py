@@ -308,7 +308,7 @@ def finish(state):
             elif diff_dodges > 0:
                 winner_key = "b"
             description = ("{winner.name} wins by having dodged "
-                           "{abs(diff_dodges)} times less")
+                           f"{abs(diff_dodges)} times less")
         else:
             winner_key = random.choice("ab")
             description = "Toss a coin: {winner.name} wins."

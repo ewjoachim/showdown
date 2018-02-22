@@ -62,14 +62,15 @@ def example():
 def main():
     command = sys.argv.pop(1)
     try:
-        {
+        func = {
             "ui": ui,
             "bulk": bulk,
             "example": example,
-        }[command]()
+        }[command]
     except KeyError:
         print(f"Unrecognized command {command}")
         usage()
+    func()
 
 
 if __name__ == '__main__':
